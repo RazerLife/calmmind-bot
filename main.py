@@ -1,29 +1,28 @@
-from aiogram import Bot, Dispatcher, executor
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher
 from config import BOT_TOKEN
 from handlers import register_all_handlers
-import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.users import load_users
-from utils.quotes import get_quote  # ← мотивационные цитаты
+from utils.quotes import get_quote
 
 logging.basicConfig(level=logging.INFO)
 
-bot = Bot(token="8136341226:AAEzAzHRcgEShJall4fAfLrkTwiT6XuPe8s")
+bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
-
-# Загружаем список подписчиков
 USER_IDS = load_users()
 
-# Время напоминаний: утро, день, вечер
+# Время напоминаний
 times = [
     ("🌞 Доброе утро!", 9),
     ("🌤 Как проходит день?", 14),
     ("🌙 Спокойный вечер!", 20)
 ]
 
-# 🔔 Отправка напоминания с цитатой
+# Напоминание с кнопками и цитатой
 async def send_reminder(greeting):
     keyboard = InlineKeyboardMarkup(row_width=3)
     keyboard.add(
@@ -31,8 +30,8 @@ async def send_reminder(greeting):
         InlineKeyboardButton("😐", callback_data="mood_neutral"),
         InlineKeyboardButton("😟", callback_data="mood_bad")
     )
+    quote = get_quote()
 
-    quote = get_quote()  # ← случайная цитата
     for uid in USER_IDS:
         try:
             await bot.send_message(
@@ -43,15 +42,17 @@ async def send_reminder(greeting):
         except Exception as e:
             logging.warning(f"Не удалось отправить {uid}: {e}")
 
-# ⏱ Планировщик
-def setup_scheduler():
+# Асинхронный запуск бота
+async def main():
+    register_all_handlers(dp)
+
     scheduler = AsyncIOScheduler()
     for greeting, hour in times:
         scheduler.add_job(send_reminder, CronTrigger(hour=hour, minute=0), args=[greeting])
     scheduler.start()
 
-# 🚀 Запуск
+    await dp.start_polling()
+
 if __name__ == "__main__":
-    register_all_handlers(dp)
-    setup_scheduler()
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())
+
